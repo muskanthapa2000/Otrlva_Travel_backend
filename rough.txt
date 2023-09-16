@@ -1,0 +1,145 @@
+// http://localhost:8080/data/search?search=thailand search
+// http://localhost:8080/data?_sort=cost&_order=asc  sort
+// http://localhost:8080/data/search?_page=2&_limit=4  pagination
+
+const { DataModel } = require("./models/data.model");
+const { connection } = require("./config/db");
+const { UserModel } = require("./models/user.model");
+
+const cors = require("cors");
+
+const express = require("express");
+const app = express();
+var jwt = require("jsonwebtoken");
+
+app.use(express.json());
+app.use(cors({ origin: "*" }));
+
+app.get("/", (req, res) => {
+  res.send("home page");
+});
+
+app.get("/data", async (req, res) => {
+  const { _page, _limit } = req.query;
+  const page = parseInt(_page, 10) || 1; // Parse _page as an integer, default to page 1
+  const limit = parseInt(_limit, 10) || 10; // Parse _limit as an integer, default to 10 items per page
+
+  try {
+    const data = await DataModel.find()
+      .skip((page - 1) * limit)
+      .limit(limit);
+    const totalCount = await DataModel.countDocuments();
+
+    res.set("X-Total-Count", totalCount); // Set total count in response header
+    res.json(data);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Internal Server Error");
+  }
+});
+
+app.post("/data/add", async (req, res) => {
+  const {
+    Country,
+    name,
+    url,
+    description,
+    cost,
+    title,
+    heading,
+    urls,
+    url1,
+    url2,
+    url3,
+    url4,
+    guestDetail,
+    description1,
+  } = req.body;
+
+  const data = await DataModel.create({
+    Country,
+    name,
+    url,
+    description,
+    cost,
+    title,
+    heading,
+    urls,
+    url1,
+    url2,
+    url3,
+    url4,
+    guestDetail,
+    description1,
+  });
+  res.send(data);
+});
+
+
+  // app.get("/data/:id", async(req, res) => {
+  //   const {id} = req.params;
+  //   const data = await DataModel.findById({id})
+  //   res.send(data);
+  // });
+
+app.get("/data/search", async (req, res) => {
+  const { search, _sort, _order, _page, _limit } = req.query;
+  const page = parseInt(_page, 9) || 1; // Parse _page as an integer, default to page 1
+  const limit = parseInt(_limit, 9) || 9; // Parse _limit as an integer, default to 10 items per page
+  const query = {};
+
+  if (search) {
+    query.Country = { $regex: search, $options: "i" };
+  }
+
+  let sortObject = {};
+  if (_sort) {
+    sortObject[_sort] = _order === "desc" ? -1 : 1;
+  }
+
+  try {
+    const data = await DataModel.find(query)
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .sort(sortObject);
+    const totalCount = await DataModel.countDocuments(query);
+
+    res.set("X-Total-Count", totalCount); // Set total count in response header
+    res.json(data);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Internal Server Error");
+  }
+});
+
+app.post("/signup", async (req, res) => {
+  const { email, first_name, second_name, contact, password } = req.body;
+  const data = await UserModel.create({
+    email,
+    first_name,
+    second_name,
+    contact,
+    password,
+  });
+  res.send(data);
+});
+
+app.post("/login", async (req, res) => {
+  const { email, password } = req.body;
+  const isUser = await UserModel.findOne({ email, password });
+  if (isUser) {
+    var token = jwt.sign({ foo: "bar" }, "shhhhh");
+    res.send({ msg: "Login Successfully", token: token });
+  }
+});
+
+app.listen(8080, async () => {
+  try {
+    await connection;
+    console.log("connected to db successfully");
+  } catch (err) {
+    console.log("error while connecting to DB");
+    console.log(err);
+  }
+  console.log("listening on port 8080");
+});
